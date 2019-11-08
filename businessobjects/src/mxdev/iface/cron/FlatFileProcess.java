@@ -29,7 +29,9 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 public class FlatFileProcess
 {
@@ -93,8 +95,6 @@ public class FlatFileProcess
 	{
 		FlatFileProcessCron.LOGGER.info("Processing file: " + fIn + "  >  " + fOut);
 
-		String regEx = separator + "(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)";
-		
 		String inputLine = null;
 		BufferedWriter writer = null;
 		BufferedReader in = null;
@@ -120,20 +120,9 @@ public class FlatFileProcess
 				writer.newLine();				
 			}
 
-			while ((inputLine = in.readLine()) != null)
+			String[] lineCols = null;
+			while ((lineCols = mysplit(in)) != null)
 			{
-				inputLine = inputLine.trim();
-				
-				// stops when an empty line is found
-				if (inputLine.equals(""))
-					break;
-				
-				FlatFileProcessCron.LOGGER.debug(inputLine);
-
-				// use a regular expression to correctly parse strings enclosed in double quotes
-				// see this: https://stackoverflow.com/questions/1757065/java-splitting-a-comma-separated-string-but-ignoring-commas-in-quotes
-				//String[] lineCols = inputLine.split(separator, 500);
-				String[] lineCols = inputLine.split(regEx, 500);
 
 				// check number of columns parsed to avoid null pointer errors
 				if (lineCols.length<max(colsIdx))
@@ -162,9 +151,9 @@ public class FlatFileProcess
 								if(colsSubstrStart[i]>val.length())
 									val = "";
 								else if(colsSubstrEnd[i]>val.length())
-									val = val.substring(colsSubstrStart[i], val.length());
+									val = val.substring(colsSubstrStart[i]-1, val.length());
 								else
-									val = val.substring(colsSubstrStart[i], colsSubstrEnd[i]);
+									val = val.substring(colsSubstrStart[i]-1, colsSubstrEnd[i]);
 							}
 							
 							if(TYPE_DATE.equals(colsType[i]))
@@ -176,7 +165,7 @@ public class FlatFileProcess
 				}
 				
 				outLine = outLine.substring(0, outLine.length()-1);
-				FlatFileProcessCron.LOGGER.debug(outLine);
+				FlatFileProcessCron.LOGGER.debug("Output:"+outLine);
 
 				writer.write(outLine);
 				writer.newLine();
@@ -205,6 +194,46 @@ public class FlatFileProcess
 		}
 	}
 
+	private String[] mysplit(BufferedReader fIn) throws IOException
+	{
+		String inputLine = fIn.readLine();
+		if (inputLine==null)
+			return null;
+		
+		inputLine = inputLine.trim();
+		
+		// stops when an empty line is found
+		if (inputLine.equals(""))
+			return null;
+		
+		FlatFileProcessCron.LOGGER.debug("Input: "+inputLine);
+		
+		List<String> tokensList = new ArrayList<String>();
+		boolean inQuotes = false;
+		StringBuilder b = new StringBuilder();
+		for (char c : inputLine.toCharArray()) {
+		    switch (c) {
+		    case ',':
+		        if (inQuotes) {
+		            b.append(c);
+		        } else {
+		            tokensList.add(b.toString());
+		            b = new StringBuilder();
+		        }
+		        break;
+		    case '\"':
+		        inQuotes = !inQuotes;
+		    default:
+		        b.append(c);
+		    break;
+		    }
+		}
+		
+		tokensList.add(b.toString());
+		
+		return tokensList.toArray(new String[0]);
+	}
+
 
 	private void parseCols(String colDef) throws RuntimeException
 	{
@@ -220,22 +249,17 @@ public class FlatFileProcess
 		
 		for (int i = 0; i < cols.length; i++)
 		{
-
-			FlatFileProcessCron.LOGGER.debug(cols[i]);
+			//FlatFileProcessCron.LOGGER.debug(cols[i]);
 			
 			if (cols[i].equals("[CURRDATETIME]"))
 			{
 				colsType[i] = TYPE_CONST;
 				colsVal[i] = dateOutFormat.format(new Date());
-				
-				FlatFileProcessCron.LOGGER.debug("'" + colsVal[i] + "' - " + colsType[i]);
 			}
 			else if (cols[i].startsWith("[") && cols[i].endsWith("]"))
 			{
 				colsType[i]=TYPE_CONST;
 				colsVal[i]=cols[i].substring(1, cols[i].length()-1);
-				
-				FlatFileProcessCron.LOGGER.debug("'" + colsVal[i] + "' - " + colsType[i]);
 			}
 			else
 			{
@@ -261,8 +285,8 @@ public class FlatFileProcess
 						throw new RuntimeException("Unable to detect data type " + flds[2]);
 				}
 				
-				FlatFileProcessCron.LOGGER.debug(colsIdx[i] + " - " + colsSubstrStart[i] + " - " + colsSubstrEnd[i] + " - " + colsType[i]);
 			}
+			FlatFileProcessCron.LOGGER.debug("Column:" + colsIdx[i] + " - start=" + colsSubstrStart[i] + " end=" + colsSubstrEnd[i] + " type=" + colsType[i]);
 
 		}
 	}
@@ -295,4 +319,5 @@ public class FlatFileProcess
 		
 		return max;
 	}
+	
 }
