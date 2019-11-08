@@ -121,9 +121,8 @@ public class FlatFileProcess
 			}
 
 			String[] lineCols = null;
-			while ((lineCols = mysplit(in)) != null)
+			while ((lineCols = splitRow(in)) != null)
 			{
-
 				// check number of columns parsed to avoid null pointer errors
 				if (lineCols.length<max(colsIdx))
 				{
@@ -194,7 +193,8 @@ public class FlatFileProcess
 		}
 	}
 
-	private String[] mysplit(BufferedReader fIn) throws IOException
+	// read row from input file and split
+	private String[] splitRow(BufferedReader fIn) throws IOException
 	{
 		String inputLine = fIn.readLine();
 		if (inputLine==null)
